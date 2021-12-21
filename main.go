@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"fasteraune.com/uit_calendar_util"
 	"github.com/bwmarrin/discordgo"
@@ -12,8 +13,9 @@ import (
 
 var BotId string
 var Events []uit_calendar_util.Event
+var NotifyChannel string
 
-func notify_lecture(s *discordgo.Session, m *discordgo.MessageCreate) {
+func WhenLecture(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == BotId {
 		return
 	}
@@ -23,14 +25,29 @@ func notify_lecture(s *discordgo.Session, m *discordgo.MessageCreate) {
 	fmt.Println(m.Author.Username)
 	fmt.Println("replying with:\n", uit_calendar_util.NextEvent(Events))
 
-	if m.Content == "!lec" && m.ChannelID == "922805648251580416" {
-		s.ChannelMessageSend(m.ChannelID, uit_calendar_util.NextEvent(Events).String())
+	if m.Content == "!lec" && m.ChannelID == NotifyChannel {
+		s.ChannelMessageSend(m.ChannelID, uit_calendar_util.NextLecture(Events).String())
+	}
+}
+
+func NotifyLecture(s *discordgo.Session, r *discordgo.Ready) {
+	for {
+		nextLecture := uit_calendar_util.NextLecture(Events)
+		timeNow := time.Now()
+		timeUntilEvent := nextLecture.TimeStamp.Sub(timeNow)
+		println("Time until next lecture: ", timeUntilEvent.String())
+		if timeUntilEvent < time.Minute*15 {
+			s.ChannelMessageSend(NotifyChannel, nextLecture.String())
+			time.Sleep(time.Minute * 15)
+		}
+		time.Sleep(time.Minute)
 	}
 }
 
 func main() {
 	// Create a new Discord session using the provided bot token.
 	token := "NTgwNDYyMjU2Mzk1OTExMTc3.XORDmg.4vplGl3G_bsEjmGukq0ppKBogyw"
+	NotifyChannel = "922805648251580416"
 	LecNotBot, err := discordgo.New("Bot " + token)
 	if err != nil {
 		panic(err)
@@ -52,7 +69,8 @@ func main() {
 	}
 	Events = res
 
-	LecNotBot.AddHandler(notify_lecture)
+	LecNotBot.AddHandler(NotifyLecture)
+	LecNotBot.AddHandler(WhenLecture)
 
 	err = LecNotBot.Open()
 	if err != nil {
