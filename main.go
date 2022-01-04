@@ -84,16 +84,23 @@ func NotifyEvent(s *discordgo.Session, r *discordgo.Ready) {
 	for {
 		if event == nil {
 			event = &StackOfEvents.Pop().Event
+			// if the stack is empty, we are done
+			if event == nil {
+				s.ChannelMessageSend(NotifyChannel, "No events left service is now stopped")
+				fmt.Println("No events left service is now stopped")
+				return
+			}
+			fmt.Printf("Event:\n%s\n", (*event).String())
 		}
 		timeNow := time.Now()
 		timeUntilEvent := event.DtStart.Sub(timeNow)
-		fmt.Printf("Time until next Event: %s\nEvent:\n%s\n", timeUntilEvent.String(), (*event).String())
 		if timeUntilEvent < time.Minute*15 {
 			s.ChannelMessageSend(NotifyChannel, event.String())
 			//i suppose the gc will take care of the memory
 			event = nil
 		}
-		time.Sleep(time.Second * 1)
+		//To lessen the load on the server, we sleep for a minute
+		time.Sleep(time.Minute)
 	}
 }
 
