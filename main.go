@@ -5,17 +5,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"fasteraune.com/uit_calendar_util"
+	"fasteraune.com/calendar_util"
 	"github.com/bwmarrin/discordgo"
 )
 
 var BotId string
-var Events []uit_calendar_util.Event
+var Events []calendar_util.CsvEvent
 var NotifyChannel string
 
-func WhenLecture(s *discordgo.Session, m *discordgo.MessageCreate) {
+func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == BotId {
 		return
 	}
@@ -23,26 +22,35 @@ func WhenLecture(s *discordgo.Session, m *discordgo.MessageCreate) {
 	fmt.Println(m.Content)
 	fmt.Println(m.Author.ID)
 	fmt.Println(m.Author.Username)
-	fmt.Println("replying with:\n", uit_calendar_util.NextEvent(Events))
 
-	if m.Content == "!lec" && m.ChannelID == NotifyChannel {
-		s.ChannelMessageSend(m.ChannelID, uit_calendar_util.NextLecture(Events).String())
+	if m.Content == "!event" && m.ChannelID == NotifyChannel {
+		s.ChannelMessageSend(m.ChannelID, calendar_util.NextCsvEvent(Events).String())
 	}
 }
 
-func NotifyLecture(s *discordgo.Session, r *discordgo.Ready) {
-	for {
-		nextLecture := uit_calendar_util.NextLecture(Events)
-		timeNow := time.Now()
-		timeUntilEvent := nextLecture.TimeStamp.Sub(timeNow)
-		println("Time until next lecture: ", timeUntilEvent.String())
-		if timeUntilEvent < time.Minute*15 {
-			s.ChannelMessageSend(NotifyChannel, nextLecture.String())
-			time.Sleep(time.Minute * 15)
-		}
-		time.Sleep(time.Minute)
+func Help(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.ID == BotId {
+		return
+	}
+
+	if m.Content == "!help" && m.ChannelID == NotifyChannel {
+		s.ChannelMessageSend(m.ChannelID, "This is lecture_notification bot, It will notify a channel about lectures and other university related events\nCommands:\n!event - Shows next event\n!help - Shows this message\n")
 	}
 }
+
+// func NotifyLecture(s *discordgo.Session, r *discordgo.Ready) {
+// 	for {
+// 		nextLecture := calendar_util.NextLecture(Events)
+// 		timeNow := time.Now()
+// 		timeUntilEvent := nextLecture.TimeStamp.Sub(timeNow)
+// 		println("Time until next lecture: ", timeUntilEvent.String())
+// 		if timeUntilEvent < time.Minute*15 {
+// 			s.ChannelMessageSend(NotifyChannel, nextLecture.String())
+// 			time.Sleep(time.Minute * 15)
+// 		}
+// 		time.Sleep(time.Minute)
+// 	}
+// }
 
 func main() {
 	// Create a new Discord session using the provided bot token.
@@ -60,17 +68,16 @@ func main() {
 
 	BotId = user.ID
 
-	courses := []string{"INF-3203-1", "INF-3701-1"}
-	url := uit_calendar_util.ConsructUrl("https://timeplan.uit.no/calendar.ics?sem=22v", courses)
-	res, err := uit_calendar_util.GetData(url)
+	urls := []string{"https://tp.uio.no/uit/timeplan/excel.php?type=course&sort=week&id[]=INF-3203%2C1&id[]=INF-3701%2C1", "https://tp.uio.no/ntnu/timeplan/excel.php?type=courseact&id%5B%5D=GEOG2023%C2%A4&id%5B%5D=KULMI2710%C2%A4&sem=22v&stop=1"}
+	csv, err := calendar_util.ReadCsvEvents(urls)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	Events = res
+	Events = csv
 
-	LecNotBot.AddHandler(NotifyLecture)
-	LecNotBot.AddHandler(WhenLecture)
+	LecNotBot.AddHandler(WhenEvent)
+	LecNotBot.AddHandler(Help)
 
 	err = LecNotBot.Open()
 	if err != nil {
