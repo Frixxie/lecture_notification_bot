@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"fasteraune.com/calendar_util"
 	"github.com/bwmarrin/discordgo"
@@ -13,6 +14,45 @@ import (
 var BotId string
 var Events []calendar_util.CsvEvent
 var NotifyChannel string
+var StackOfEvents *Stack
+
+type StackNode struct {
+	Event calendar_util.CsvEvent
+	Next  *StackNode
+}
+
+type Stack struct {
+	Top *StackNode
+}
+
+func (s *Stack) Push(event calendar_util.CsvEvent) {
+	node := &StackNode{
+		Event: event,
+		Next:  s.Top,
+	}
+	s.Top = node
+}
+
+func NewStack() *Stack {
+	return &Stack{}
+}
+
+func convertToStack(events []calendar_util.CsvEvent) *Stack {
+	stack := new(Stack)
+	for i := len(events) - 1; i >= 0; i-- {
+		stack.Push(events[i])
+	}
+	return stack
+}
+
+func (s *Stack) Pop() *StackNode {
+	if s.Top == nil {
+		return nil
+	}
+	node := s.Top
+	s.Top = s.Top.Next
+	return node
+}
 
 func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == BotId {
@@ -38,19 +78,22 @@ func Help(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 }
 
-// func NotifyLecture(s *discordgo.Session, r *discordgo.Ready) {
-// 	for {
-// 		nextLecture := calendar_util.NextLecture(Events)
-// 		timeNow := time.Now()
-// 		timeUntilEvent := nextLecture.TimeStamp.Sub(timeNow)
-// 		println("Time until next lecture: ", timeUntilEvent.String())
-// 		if timeUntilEvent < time.Minute*15 {
-// 			s.ChannelMessageSend(NotifyChannel, nextLecture.String())
-// 			time.Sleep(time.Minute * 15)
-// 		}
-// 		time.Sleep(time.Minute)
-// 	}
-// }
+func NotifyEvent(s *discordgo.Session, r *discordgo.Ready) {
+	var event *calendar_util.CsvEvent
+	for {
+		if event == nil {
+			event = &StackOfEvents.Pop().Event
+		}
+		timeNow := time.Now()
+		timeUntilEvent := event.DtStart.Sub(timeNow)
+		println("Time until next Event: ", timeUntilEvent.String())
+		if timeUntilEvent < time.Minute*15 {
+			s.ChannelMessageSend(NotifyChannel, event.String())
+			event = nil
+		}
+		time.Sleep(time.Second * 5)
+	}
+}
 
 func main() {
 	// Create a new Discord session using the provided bot token.
@@ -75,9 +118,11 @@ func main() {
 		return
 	}
 	Events = csv
+	StackOfEvents = convertToStack(Events)
 
 	LecNotBot.AddHandler(WhenEvent)
 	LecNotBot.AddHandler(Help)
+	LecNotBot.AddHandler(NotifyEvent)
 
 	err = LecNotBot.Open()
 	if err != nil {
