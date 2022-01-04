@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -86,12 +87,13 @@ func NotifyEvent(s *discordgo.Session, r *discordgo.Ready) {
 		}
 		timeNow := time.Now()
 		timeUntilEvent := event.DtStart.Sub(timeNow)
-		println("Time until next Event: ", timeUntilEvent.String())
+		fmt.Printf("Time until next Event: %s\nEvent:\n%s\n", timeUntilEvent.String(), (*event).String())
 		if timeUntilEvent < time.Minute*15 {
 			s.ChannelMessageSend(NotifyChannel, event.String())
+			//i suppose the gc will take care of the memory
 			event = nil
 		}
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 1)
 	}
 }
 
@@ -118,6 +120,9 @@ func main() {
 		return
 	}
 	Events = csv
+	sort.Slice(csv, func(i, j int) bool {
+		return csv[i].DtStart.Before(csv[j].DtStart.Time)
+	})
 	StackOfEvents = convertToStack(Events)
 
 	LecNotBot.AddHandler(WhenEvent)

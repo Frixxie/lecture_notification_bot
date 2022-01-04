@@ -46,6 +46,7 @@ func TestStackOrder(t *testing.T) {
 	for _, event := range csv {
 		s.Push(event)
 	}
+
 	for i := len(csv) - 1; i >= 0; i-- {
 		event := s.Pop()
 		if event.Event != csv[i] {
