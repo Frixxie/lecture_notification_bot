@@ -38,7 +38,7 @@ func NewStack() *Stack {
 	return &Stack{}
 }
 
-func convertToStack(events []calendar_util.CsvEvent) *Stack {
+func ConvertToStack(events []calendar_util.CsvEvent) *Stack {
 	stack := new(Stack)
 	for i := len(events) - 1; i >= 0; i-- {
 		stack.Push(events[i])
@@ -46,13 +46,13 @@ func convertToStack(events []calendar_util.CsvEvent) *Stack {
 	return stack
 }
 
-func (s *Stack) Pop() *StackNode {
+func (s *Stack) Pop() *calendar_util.CsvEvent {
 	if s.Top == nil {
 		return nil
 	}
 	node := s.Top
 	s.Top = s.Top.Next
-	return node
+	return &node.Event
 }
 
 func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -75,7 +75,7 @@ func Help(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	if m.Content == "!help" && m.ChannelID == NotifyChannel {
-		s.ChannelMessageSend(m.ChannelID, "This is lecture_notification bot, It will notify a channel about lectures and other university related events\nCommands:\n!event - Shows next event\n!help - Shows this message\n")
+		s.ChannelMessageSend(m.ChannelID, "This is notification bot, It will notify a channel about lectures and other university related events\nCommands:\n!event - Shows next event\n!help - Shows this message\n")
 	}
 }
 
@@ -83,7 +83,7 @@ func NotifyEvent(s *discordgo.Session, r *discordgo.Ready) {
 	var event *calendar_util.CsvEvent
 	for {
 		if event == nil {
-			event = &StackOfEvents.Pop().Event
+			event = StackOfEvents.Pop()
 			// if the stack is empty, we are done
 			if event == nil {
 				s.ChannelMessageSend(NotifyChannel, "No events left service is now stopped")
@@ -92,8 +92,7 @@ func NotifyEvent(s *discordgo.Session, r *discordgo.Ready) {
 			}
 			fmt.Printf("Event:\n%s\n", (*event).String())
 		}
-		timeNow := time.Now()
-		timeUntilEvent := event.DtStart.Sub(timeNow)
+		timeUntilEvent := event.DtStart.Sub(time.Now())
 		if timeUntilEvent < time.Minute*15 {
 			s.ChannelMessageSend(NotifyChannel, event.String())
 			//i suppose the gc will take care of the memory
@@ -130,7 +129,7 @@ func main() {
 	sort.Slice(csv, func(i, j int) bool {
 		return csv[i].DtStart.Before(csv[j].DtStart.Time)
 	})
-	StackOfEvents = convertToStack(Events)
+	StackOfEvents = ConvertToStack(Events)
 
 	LecNotBot.AddHandler(WhenEvent)
 	LecNotBot.AddHandler(Help)

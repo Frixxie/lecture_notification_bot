@@ -19,8 +19,8 @@ func TestStack(t *testing.T) {
 	s.Push(csv[0])
 	event := s.Pop()
 
-	if event.Event != csv[0] {
-		t.Error("Expected", csv[0], "got", event.Event)
+	if *event != csv[0] {
+		t.Error("Expected", csv[0], "got", *event)
 	}
 }
 
@@ -49,8 +49,8 @@ func TestStackOrder(t *testing.T) {
 
 	for i := len(csv) - 1; i >= 0; i-- {
 		event := s.Pop()
-		if event.Event != csv[i] {
-			t.Error("Expected", csv[i], "got", event.Event)
+		if *event != csv[i] {
+			t.Error("Expected", csv[i], "got", *event)
 		}
 	}
 }
