@@ -218,12 +218,12 @@ func notify_events(session *discordgo.Session, stack *Stack) {
 
 func main() {
 	// Create a new Discord session using the provided bot token.
-	token, err := ioutil.ReadFile("token")
+	token, err := ioutil.ReadFile("bot_token")
 	if err != nil {
 		fmt.Println("Error reading token file")
 		return
 	}
-	LecNotBot, err := discordgo.New("Bot " + string(token))
+	LecNotBot, err := discordgo.New("Bot " + strings.Trim(string(token), "\n"))
 	if err != nil {
 		panic(err)
 	}
