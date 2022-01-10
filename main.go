@@ -35,15 +35,6 @@ type Stack struct {
 	Rw      *sync.RWMutex
 }
 
-func (s *Stack) Push(event calendar_util.CsvEvent) {
-	node := &StackNode{
-		Event: event,
-		Next:  s.Top,
-	}
-	s.Top = node
-	s.Len += 1
-}
-
 func NewStack(channel string, owner string) *Stack {
 	return &Stack{
 		Top:     nil,
@@ -59,7 +50,6 @@ func ConvertToStack(events []calendar_util.CsvEvent, channel string, owner strin
 	stack := NewStack(channel, owner)
 	for i := len(events) - 1; i >= 0; i-- {
 		stack.Push(events[i])
-		println(stack.Len)
 	}
 	return stack
 }
@@ -71,14 +61,56 @@ func (s Stack) String() string {
 	return res
 }
 
+func (s *Stack) Push(event calendar_util.CsvEvent) {
+	s.Rw.Lock()
+	node := &StackNode{
+		Event: event,
+		Next:  s.Top,
+	}
+	s.Top = node
+	s.Len += 1
+	s.Rw.Unlock()
+}
+
 func (s *Stack) Pop() *calendar_util.CsvEvent {
+	s.Rw.Lock()
 	if s.Top == nil {
+		s.Rw.Unlock()
 		return nil
 	}
 	node := s.Top
 	s.Top = s.Top.Next
 	s.Len -= 1
+	s.Rw.Unlock()
 	return &node.Event
+}
+
+func (s *Stack) Peek() *calendar_util.CsvEvent {
+	s.Rw.RLock()
+	if s.Top == nil {
+		s.Rw.RUnlock()
+		return nil
+	}
+	res := s.Top.Event
+	s.Rw.RUnlock()
+	return &res
+}
+
+func (s *Stack) SetState(active bool) {
+	s.Rw.Lock()
+	s.Active = active
+	s.Rw.Unlock()
+}
+
+func (s *Stack) GetState() bool {
+	s.Rw.RLock()
+	active := s.Active
+	s.Rw.RUnlock()
+	return active
+}
+
+func (s *Stack) GetChannel() string {
+	return s.Channel
 }
 
 // TODO: rewrite me!
@@ -87,12 +119,12 @@ func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	fmt.Println(m.Content)
-	fmt.Println(m.Author.ID)
-	fmt.Println(m.Author.Username)
-
-	if m.Content == "!event" && m.ChannelID == NotifyChannel {
-		s.ChannelMessageSend(m.ChannelID, calendar_util.NextCsvEvent(Events).String())
+	if m.Content == "!event" {
+		for _, stack := range StackOfEvents {
+			if stack.GetChannel() == m.ChannelID {
+				s.ChannelMessageSend(m.ChannelID, stack.Peek().String())
+			}
+		}
 	}
 }
 
@@ -133,7 +165,7 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 	})
 	stack := ConvertToStack(csv, m.ChannelID, m.Author.Username)
 	StackOfEvents = append(StackOfEvents, stack)
-	go notify_events(&s, &stack)
+	go notify_events(s, stack)
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Thank you @%s for adding lecture notification bot. Service is now started, %d events will be notified", stack.Owner, stack.Len))
 }
 
@@ -146,9 +178,7 @@ func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
 		for i := 0; i < len(StackOfEvents); i++ {
 			if StackOfEvents[i].Channel == m.ChannelID {
 				// TODO: remove the stack from the list
-				StackOfEvents[i].Rw.Lock()
-				StackOfEvents[i].Active = false
-				StackOfEvents[i].Rw.Unlock()
+				StackOfEvents[i].SetState(false)
 				StackOfEvents = append(StackOfEvents[:i], StackOfEvents[i+1:]...)
 				// s.ChannelMessageSend(m.ChannelID, "Service is now stopped")
 				return
@@ -157,20 +187,17 @@ func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 }
 
-func notify_events(s **discordgo.Session, stackofevents **Stack) {
+func notify_events(session *discordgo.Session, stack *Stack) {
 	var event *calendar_util.CsvEvent
-	session := *s
-	stack := *stackofevents
 	for {
-		stack.Rw.RLock()
 		fmt.Println(stack)
-		if !stack.Active {
-			session.ChannelMessageSend(stack.Channel, fmt.Sprintf("Service for Owner %s is now stopped", stack.Owner))
+		if !stack.GetState() {
+			session.ChannelMessageSend(stack.Channel, "Service for Owner is now stopped")
 			fmt.Println("Service is now stopped")
 			return
 		}
 		if event == nil {
-			event = stack.Pop()
+			event = stack.Peek()
 			// if the stack is empty, we are done
 			if event == nil {
 				session.ChannelMessageSend(stack.Channel, "No events left service is now stopped")
@@ -183,10 +210,10 @@ func notify_events(s **discordgo.Session, stackofevents **Stack) {
 		if timeUntilEvent < time.Minute*15 {
 			session.ChannelMessageSend(NotifyChannel, fmt.Sprintf("Hey %s, next event is:\n%s", stack.Owner, event.String()))
 			//i suppose the gc will take care of the memory
+			event = stack.Pop()
 			event = nil
 		}
 		//To lessen the load on the server, we sleep for a minute
-		stack.Rw.RUnlock()
 		time.Sleep(time.Second * 5)
 	}
 }
