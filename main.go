@@ -65,7 +65,10 @@ func ConvertToStack(events []calendar_util.CsvEvent, channel string, owner strin
 }
 
 func (s Stack) String() string {
-	return fmt.Sprintf("%s, %s, %d events, Active %t", s.Owner, s.Channel, s.Len, s.Active)
+	s.Rw.RLock()
+	res := fmt.Sprintf("%s, %s, %d events, Active %t", s.Owner, s.Channel, s.Len, s.Active)
+	s.Rw.RUnlock()
+	return res
 }
 
 func (s *Stack) Pop() *calendar_util.CsvEvent {
@@ -188,35 +191,9 @@ func notify_events(s **discordgo.Session, stackofevents **Stack) {
 	}
 }
 
-//// TODO: rewrite me!
-//func NotifyEvent(s *discordgo.Session, r *discordgo.Ready) {
-//	var event *calendar_util.CsvEvent
-//	for {
-//		if event == nil {
-//			event = StackOfEvents.Pop()
-//			// if the stack is empty, we are done
-//			if event == nil {
-//				s.ChannelMessageSend(NotifyChannel, "No events left service is now stopped")
-//				fmt.Println("No events left service is now stopped")
-//				return
-//			}
-//			fmt.Printf("Event:\n%s\n", (*event).String())
-//		}
-//		timeUntilEvent := event.DtStart.Sub(time.Now())
-//		if timeUntilEvent < time.Minute*15 {
-//			s.ChannelMessageSend(NotifyChannel, event.String())
-//			//i suppose the gc will take care of the memory
-//			event = nil
-//		}
-//		//To lessen the load on the server, we sleep for a minute
-//		time.Sleep(time.Minute)
-//	}
-//}
-
 func main() {
 	// Create a new Discord session using the provided bot token.
 	token := "NTgwNDYyMjU2Mzk1OTExMTc3.XORDmg.4vplGl3G_bsEjmGukq0ppKBogyw"
-	// NotifyChannel = "922805648251580416"
 	LecNotBot, err := discordgo.New("Bot " + token)
 	if err != nil {
 		panic(err)
@@ -228,19 +205,6 @@ func main() {
 	}
 
 	BotId = user.ID
-
-	// urls := []string{"https://tp.uio.no/uit/timeplan/excel.php?type=course&sort=week&id[]=INF-3203%2C1&id[]=INF-3701%2C1", "https://tp.uio.no/ntnu/timeplan/excel.php?type=courseact&id%5B%5D=GEOG2023%C2%A4&id%5B%5D=KULMI2710%C2%A4&sem=22v&stop=1"}
-	// csv, err := calendar_util.ReadCsvEvents(urls)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// Events = csv
-	// sort.Slice(csv, func(i, j int) bool {
-	// 	return csv[i].DtStart.Before(csv[j].DtStart.Time)
-	// })
-	// StackOfEvents[0] = ConvertToStack(Events, NotifyChannel, "fredrik")
-	// LecNotBot.AddHandler(NotifyEvent)
 
 	LecNotBot.AddHandler(WhenEvent)
 	LecNotBot.AddHandler(Help)
