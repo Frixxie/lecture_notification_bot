@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ type Stack struct {
 	Owner   string
 	Len     int
 	Active  bool
+	Rw      *sync.RWMutex
 }
 
 func (s *Stack) Push(event calendar_util.CsvEvent) {
@@ -49,6 +51,7 @@ func NewStack(channel string, owner string) *Stack {
 		Owner:   owner,
 		Len:     0,
 		Active:  true,
+		Rw:      &sync.RWMutex{},
 	}
 }
 
@@ -126,7 +129,6 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return csv[i].DtStart.Before(csv[j].DtStart.Time)
 	})
 	stack := ConvertToStack(csv, m.ChannelID, m.Author.Username)
-
 	StackOfEvents = append(StackOfEvents, stack)
 	go notify_events(&s, &stack)
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Thank you @%s for adding lecture notification bot. Service is now started, %d events will be notified", stack.Owner, stack.Len))
@@ -141,7 +143,9 @@ func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
 		for i := 0; i < len(StackOfEvents); i++ {
 			if StackOfEvents[i].Channel == m.ChannelID {
 				// TODO: remove the stack from the list
+				StackOfEvents[i].Rw.Lock()
 				StackOfEvents[i].Active = false
+				StackOfEvents[i].Rw.Unlock()
 				StackOfEvents = append(StackOfEvents[:i], StackOfEvents[i+1:]...)
 				// s.ChannelMessageSend(m.ChannelID, "Service is now stopped")
 				return
@@ -155,6 +159,7 @@ func notify_events(s **discordgo.Session, stackofevents **Stack) {
 	session := *s
 	stack := *stackofevents
 	for {
+		stack.Rw.RLock()
 		fmt.Println(stack)
 		if !stack.Active {
 			session.ChannelMessageSend(stack.Channel, fmt.Sprintf("Service for Owner %s is now stopped", stack.Owner))
@@ -178,6 +183,7 @@ func notify_events(s **discordgo.Session, stackofevents **Stack) {
 			event = nil
 		}
 		//To lessen the load on the server, we sleep for a minute
+		stack.Rw.RUnlock()
 		time.Sleep(time.Second * 5)
 	}
 }
