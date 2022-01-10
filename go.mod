@@ -15,4 +15,4 @@ require (
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 )
 
-replace fasteraune.com/calendar_util => ../uit_calendar_util/uit_calendar_util_go
+replace fasteraune.com/calendar_util => ./uit_calendar_util/calendar_util
