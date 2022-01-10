@@ -109,11 +109,6 @@ func (s *Stack) GetState() bool {
 	return active
 }
 
-func (s *Stack) GetChannel() string {
-	return s.Channel
-}
-
-// TODO: rewrite me!
 func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == BotId {
 		return
@@ -121,7 +116,7 @@ func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	if m.Content == "!event" {
 		for _, stack := range StackOfEvents {
-			if stack.GetChannel() == m.ChannelID {
+			if stack.Channel == m.ChannelID {
 				s.ChannelMessageSend(m.ChannelID, stack.Peek().String())
 			}
 		}
@@ -164,9 +159,12 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return csv[i].DtStart.Before(csv[j].DtStart.Time)
 	})
 	stack := ConvertToStack(csv, m.ChannelID, m.Author.Username)
+
 	StackOfEvents = append(StackOfEvents, stack)
+
 	go notify_events(s, stack)
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Thank you @%s for adding lecture notification bot. Service is now started, %d events will be notified", stack.Owner, stack.Len))
+
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Thank you %s for adding lecture notification bot. Service is now started, %d events will be notified", stack.Owner, stack.Len))
 }
 
 func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -176,11 +174,9 @@ func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	if m.Content == "!leave" {
 		for i := 0; i < len(StackOfEvents); i++ {
-			if StackOfEvents[i].Channel == m.ChannelID {
-				// TODO: remove the stack from the list
+			if StackOfEvents[i].Channel == m.ChannelID && StackOfEvents[i].Owner == m.Author.Username {
 				StackOfEvents[i].SetState(false)
 				StackOfEvents = append(StackOfEvents[:i], StackOfEvents[i+1:]...)
-				// s.ChannelMessageSend(m.ChannelID, "Service is now stopped")
 				return
 			}
 		}
@@ -191,9 +187,10 @@ func notify_events(session *discordgo.Session, stack *Stack) {
 	var event *calendar_util.CsvEvent
 	for {
 		fmt.Println(stack)
+		//If the stack is deactivated, stop the loop
 		if !stack.GetState() {
 			session.ChannelMessageSend(stack.Channel, "Service for Owner is now stopped")
-			fmt.Println("Service is now stopped")
+			fmt.Println("Service is now stopped", stack)
 			return
 		}
 		if event == nil {
