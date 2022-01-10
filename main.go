@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"sort"
@@ -217,8 +218,12 @@ func notify_events(session *discordgo.Session, stack *Stack) {
 
 func main() {
 	// Create a new Discord session using the provided bot token.
-	token := "NTgwNDYyMjU2Mzk1OTExMTc3.XORDmg.4vplGl3G_bsEjmGukq0ppKBogyw"
-	LecNotBot, err := discordgo.New("Bot " + token)
+	token, err := ioutil.ReadFile("token")
+	if err != nil {
+		fmt.Println("Error reading token file")
+		return
+	}
+	LecNotBot, err := discordgo.New("Bot " + string(token))
 	if err != nil {
 		panic(err)
 	}
