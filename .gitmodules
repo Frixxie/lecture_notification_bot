@@ -1,0 +1,3 @@
+[submodule "uit_calendar_util"]
+	path = uit_calendar_util
+	url = git@github.com:Frixxie/uit_calendar_util.git
