@@ -151,6 +151,8 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	fmt.Println("Join", urls)
+
 	csv, err := calendar_util.ReadCsvEvents(urls)
 	if err != nil {
 		fmt.Println(err)
@@ -165,21 +167,6 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Thank you %s for adding lecture notification bot. Service is now started, %d events will be notified", stack.Owner, stack.Len))
 	notify_events(&s, stack)
-}
-
-func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == BotId {
-		return
-	}
-
-	if m.Content == "!leave" {
-		for i := 0; i < len(StackOfEvents); i++ {
-			if StackOfEvents[i].Channel == m.ChannelID && StackOfEvents[i].Owner == m.Author.Username {
-				StackOfEvents[i].SetState(false)
-				StackOfEvents = append(StackOfEvents[:i], StackOfEvents[i+1:]...)
-			}
-		}
-	}
 }
 
 func notify_events(s **discordgo.Session, stack *Stack) {
@@ -214,6 +201,21 @@ func notify_events(s **discordgo.Session, stack *Stack) {
 		}
 		//To lessen the load on the server, we sleep for a minute
 		time.Sleep(time.Second * 5)
+	}
+}
+
+func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.ID == BotId {
+		return
+	}
+
+	if m.Content == "!leave" {
+		for i := 0; i < len(StackOfEvents); i++ {
+			if StackOfEvents[i].Channel == m.ChannelID && StackOfEvents[i].Owner == m.Author.Username {
+				StackOfEvents[i].SetState(false)
+				StackOfEvents = append(StackOfEvents[:i], StackOfEvents[i+1:]...)
+			}
+		}
 	}
 }
 
