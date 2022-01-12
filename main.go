@@ -163,9 +163,8 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	StackOfEvents = append(StackOfEvents, stack)
 
-	go notify_events(s, stack)
-
 	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Thank you %s for adding lecture notification bot. Service is now started, %d events will be notified", stack.Owner, stack.Len))
+	notify_events(&s, stack)
 }
 
 func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -178,14 +177,14 @@ func Leave(s *discordgo.Session, m *discordgo.MessageCreate) {
 			if StackOfEvents[i].Channel == m.ChannelID && StackOfEvents[i].Owner == m.Author.Username {
 				StackOfEvents[i].SetState(false)
 				StackOfEvents = append(StackOfEvents[:i], StackOfEvents[i+1:]...)
-				return
 			}
 		}
 	}
 }
 
-func notify_events(session *discordgo.Session, stack *Stack) {
+func notify_events(s **discordgo.Session, stack *Stack) {
 	var event *calendar_util.CsvEvent
+	session := *s
 	for {
 		fmt.Println(stack)
 		//If the stack is deactivated, stop the loop
@@ -206,7 +205,9 @@ func notify_events(session *discordgo.Session, stack *Stack) {
 		}
 		timeUntilEvent := event.DtStart.Sub(time.Now())
 		if timeUntilEvent < time.Minute*15 {
-			session.ChannelMessageSend(NotifyChannel, fmt.Sprintf("Hey %s, next event is:\n%s", stack.Owner, event.String()))
+			if timeUntilEvent > 0 {
+				session.ChannelMessageSend(stack.Channel, event.String())
+			}
 			//i suppose the gc will take care of the memory
 			event = stack.Pop()
 			event = nil
