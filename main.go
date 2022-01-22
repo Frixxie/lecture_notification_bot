@@ -116,12 +116,11 @@ func (s *Stack) RemoveOldEvents() {
 	var event *calendar_util.CsvEvent
 	for {
 		event = s.Peek()
-		if event == nil {
-			break
-		}
 		if event.DtStart.Before(time.Now()) {
 			fmt.Println("Removed old event", event)
 			s.Pop()
+		} else if event.DtStart.After(time.Now()) {
+			break
 		}
 	}
 }
