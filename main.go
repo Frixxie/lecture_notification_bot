@@ -32,23 +32,25 @@ type Stack struct {
 	Channel string
 	Owner   string
 	Len     int
+	Urls    []string
 	Active  bool
 	Rw      *sync.RWMutex
 }
 
-func NewStack(channel string, owner string) *Stack {
+func NewStack(channel string, owner string, urls []string) *Stack {
 	return &Stack{
 		Top:     nil,
 		Channel: channel,
 		Owner:   owner,
 		Len:     0,
+		Urls:    urls,
 		Active:  true,
 		Rw:      &sync.RWMutex{},
 	}
 }
 
-func ConvertToStack(events []calendar_util.CsvEvent, channel string, owner string) *Stack {
-	stack := NewStack(channel, owner)
+func ConvertToStack(events []calendar_util.CsvEvent, channel string, owner string, urls []string) *Stack {
+	stack := NewStack(channel, owner, urls)
 	for i := len(events) - 1; i >= 0; i-- {
 		stack.Push(events[i])
 	}
@@ -110,6 +112,20 @@ func (s *Stack) GetState() bool {
 	return active
 }
 
+func (s *Stack) RemoveOldEvents() {
+	var event *calendar_util.CsvEvent
+	for {
+		event = s.Peek()
+		if event == nil {
+			break
+		}
+		if event.DtStart.Before(time.Now()) {
+			fmt.Println("Removed old event", event)
+			s.Pop()
+		}
+	}
+}
+
 func WhenEvent(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == BotId {
 		return
@@ -161,7 +177,9 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 	sort.Slice(csv, func(i, j int) bool {
 		return csv[i].DtStart.Before(csv[j].DtStart.Time)
 	})
-	stack := ConvertToStack(csv, m.ChannelID, m.Author.Username)
+	stack := ConvertToStack(csv, m.ChannelID, m.Author.Username, urls)
+
+	stack.RemoveOldEvents()
 
 	StackOfEvents = append(StackOfEvents, stack)
 
