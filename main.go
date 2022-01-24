@@ -166,6 +166,13 @@ func Join(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	for _, stack := range StackOfEvents {
+		if stack.Channel == m.ChannelID {
+			s.ChannelMessageSend(m.ChannelID, "You are already subscribed to this channel")
+			return
+		}
+	}
+
 	fmt.Println("Join", urls)
 
 	csv, err := calendar_util.ReadCsvEvents(urls)
